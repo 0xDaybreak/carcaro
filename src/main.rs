@@ -1,8 +1,10 @@
 mod db;
 mod types;
+mod handle_errors;
 
 use std::collections::HashMap;
 use warp::{Filter, http::Method, Rejection, Reply};
+use crate::types::carparams::{CarParams, extract_car_params};
 
 #[tokio::main]
 async fn main() {
@@ -37,7 +39,11 @@ pub async fn get_cars_with_images(
     params: HashMap<String, String>,
     db: db::Connection
 ) -> Result<impl Reply, Rejection> {
-    let res = match db.get_cars_with_images()
+    let mut car_params = CarParams::default();
+    if !params.is_empty() {
+        car_params = extract_car_params(params)?;
+    }
+    let res = match db.get_cars_with_images(car_params.make, car_params.model, car_params.year)
         .await {
         Ok( res) => res,
         Err(e) => {

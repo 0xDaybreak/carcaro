@@ -1,5 +1,5 @@
 use sqlx::{Error, query, Row};
-use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
+use sqlx::postgres::{PgPool, PgPoolOptions};
 use warp::hyper::body::HttpBody;
 use crate::types::car::{Car, CarId};
 use crate::types::image::{Image, ImageId};
@@ -15,7 +15,7 @@ impl Connection {
             .max_connections(5)
             .connect(db_url).await {
             Ok(pool) => pool,
-            Err(e) => panic!("Couldn't establish DB connection")
+            Err(e) => panic!("Couldn't establish DB connection {}", e)
         };
 
         Connection {
@@ -23,14 +23,18 @@ impl Connection {
         }
     }
 
-    pub async fn get_cars_with_images(&self) -> Result<Vec<(Car, Image)>, Error> {
+    pub async fn get_cars_with_images(&self, make: String, model: String, year: i32) -> Result<Vec<(Car, Image)>, Error> {
         let query = query(
-        r#"
+            r#"
         SELECT *
         FROM car
         INNER JOIN image ON car.imageid = image.imageid
+        WHERE car.make = $1 AND car.model = $2 AND car.year = $3
         "#
-    );
+        )
+            .bind(make)
+            .bind(model)
+            .bind(year);
 
         let result = match query.fetch_all(&self.connection).await {
             Ok(result) => result,
@@ -60,6 +64,5 @@ impl Connection {
 
         Ok(cars_with_images)
     }
-
 }
 
