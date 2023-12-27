@@ -3,6 +3,7 @@ mod types;
 mod handle_errors;
 
 use std::collections::HashMap;
+use reqwest::StatusCode;
 use warp::{Filter, http::Method, Rejection, Reply};
 use crate::types::carparams::{CarParams, extract_car_params};
 
@@ -43,7 +44,7 @@ pub async fn get_cars_with_images(
     if !params.is_empty() {
         car_params = extract_car_params(params)?;
     }
-    let res = match db.get_cars_with_images(car_params.make, car_params.model, car_params.year)
+    let res = match db.get_cars_with_images()
         .await {
         Ok( res) => res,
         Err(e) => {
@@ -52,4 +53,20 @@ pub async fn get_cars_with_images(
     };
 
     return Ok(warp::reply::json(&res));
+}
+
+pub async fn post_chosen_color(
+    db: db::Connection
+) -> Result<impl Reply, Rejection> {
+    /*
+    if let Err(e) = db.post_chosen_color()
+        .await {
+            return Err(warp::reject::not_found())
+    }
+
+     */
+    Ok(warp::reply::with_status(
+"Color posted successfully",
+        StatusCode::OK,
+    ))
 }

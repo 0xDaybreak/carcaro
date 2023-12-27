@@ -2,7 +2,6 @@ use sqlx::{Error, query, Row};
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use warp::hyper::body::HttpBody;
 use crate::types::car::{Car, CarId};
-use crate::types::image::{Image, ImageId};
 
 #[derive(Clone)]
 pub struct Connection {
@@ -23,18 +22,13 @@ impl Connection {
         }
     }
 
-    pub async fn get_cars_with_images(&self, make: String, model: String, year: i32) -> Result<Vec<(Car, Image)>, Error> {
+    pub async fn get_cars_with_images(&self) -> Result<Vec<Car>, Error> {
         let query = query(
             r#"
         SELECT *
         FROM car
-        INNER JOIN image ON car.imageid = image.imageid
-        WHERE car.make = $1 AND car.model = $2 AND car.year = $3
         "#
-        )
-            .bind(make)
-            .bind(model)
-            .bind(year);
+        );
 
         let result = match query.fetch_all(&self.connection).await {
             Ok(result) => result,
@@ -43,7 +37,7 @@ impl Connection {
                 return Err(Error::RowNotFound);
             }
         };
-        let cars_with_images: Vec<(Car, Image)> = result
+        let cars_with_images: Vec<Car> = result
             .into_iter()
             .map(|row| {
                 let car = Car {
@@ -54,11 +48,7 @@ impl Connection {
                     color_id: row.get("colorid"),
                     image_id: row.get("imageid"),
                 };
-                let image = Image {
-                    id: ImageId(row.get("imageid")),
-                    url: row.get("url"),
-                };
-                (car, image)
+                car
             })
             .collect();
 
