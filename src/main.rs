@@ -24,11 +24,20 @@ async fn main() {
     let get_cars = warp::get()
         .and(warp::path("cars"))
         .and(warp::path::end())
-        .and(warp::query())
         .and(db_filter.clone())
         .and_then(get_cars_with_images);
 
-    let routes = get_cars.with(cors);
+    let get_cars_to_visualize = warp::get()
+        .and(warp::path("cars"))
+        .and(warp::path("visualize"))
+        .and(warp::path::end())
+        .and(warp::query())
+        .and(db_filter.clone())
+        .and_then(get_car_to_visualize);
+
+    let routes = get_cars
+        .or(get_cars_to_visualize)
+        .with(cors);
 
     warp::serve(routes)
         .run(([127, 0, 0, 1], 7070))
@@ -37,13 +46,8 @@ async fn main() {
 }
 
 pub async fn get_cars_with_images(
-    params: HashMap<String, String>,
     db: db::Connection
 ) -> Result<impl Reply, Rejection> {
-    let mut car_params = CarParams::default();
-    if !params.is_empty() {
-        car_params = extract_car_params(params)?;
-    }
     let res = match db.get_cars_with_images()
         .await {
         Ok( res) => res,
@@ -69,4 +73,22 @@ pub async fn post_chosen_color(
 "Color posted successfully",
         StatusCode::OK,
     ))
+}
+
+pub async fn get_car_to_visualize(
+    params: HashMap<String, String>,
+    db: db::Connection,
+) -> Result<impl Reply, Rejection> {
+    let mut car_params = CarParams::default();
+    if !params.is_empty() {
+        car_params = extract_car_params(params)?;
+    }
+    let res = match db.get_car_to_visualize(car_params.make, car_params.model, car_params.year)
+        .await {
+        Ok(res) => res,
+        Err(e) => {
+            return Err(warp::reject::not_found())
+        }
+    };
+    Ok(warp::reply::json(&res))
 }

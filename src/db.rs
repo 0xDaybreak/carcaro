@@ -2,6 +2,7 @@ use sqlx::{Error, query, Row};
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use warp::hyper::body::HttpBody;
 use crate::types::car::{Car, CarId};
+use crate::types::image::{Image, ImageId};
 
 #[derive(Clone)]
 pub struct Connection {
@@ -53,6 +54,35 @@ impl Connection {
             .collect();
 
         Ok(cars_with_images)
+    }
+
+    pub async fn get_car_to_visualize(&self, make: String, model: String, year:i32) -> Result<Image, Error> {
+        let query = query(
+            r#"
+            SELECT image.imageid, image.url
+            FROM image
+            INNER JOIN car ON image.imageid = car.imageid
+            WHERE car.make = $1 AND car.model = $2 AND car.year = $3
+            "#
+        )
+            .bind(&make)
+            .bind(&model)
+            .bind(year);
+
+        let res = match query.fetch_one(&self.connection).await {
+            Ok(res) => res,
+            Err(e) => {
+                eprintln!("Error querying db {:?}", e);
+                return Err(Error::RowNotFound);
+            }
+        };
+        let images = Image {
+            id: ImageId(res.get("imageid")),
+            url: res.get("url")
+        };
+
+        Ok(images)
+
     }
 }
 
