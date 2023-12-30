@@ -5,6 +5,7 @@ use warp::reject::Reject;
 pub enum Error {
     ParseError(std::num::ParseIntError),
     MissingParams,
+    ColorSwapError,
 }
 
 impl std::fmt::Display for Error {
@@ -15,6 +16,9 @@ impl std::fmt::Display for Error {
             }
             Error::MissingParams => {
                 write!(f, "Missing parameters")
+            }
+            Error::ColorSwapError => {
+                write!(f, "Cannot swap colors")
             }
         }
     }

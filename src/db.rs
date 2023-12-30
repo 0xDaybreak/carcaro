@@ -2,7 +2,7 @@ use sqlx::{Error, query, Row};
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use warp::hyper::body::HttpBody;
 use crate::types::car::{Car, CarId};
-use crate::types::image::{Image, ImageId};
+use crate::types::image::{Image, ImageId, NewImage};
 
 #[derive(Clone)]
 pub struct Connection {
@@ -56,10 +56,10 @@ impl Connection {
         Ok(cars_with_images)
     }
 
-    pub async fn get_car_to_visualize(&self, make: String, model: String, year:i32) -> Result<Image, Error> {
+    pub async fn get_car_to_visualize(&self, make: String, model: String, year: i32) -> Result<Image, Error> {
         let query = query(
             r#"
-            SELECT image.imageid, image.url
+            SELECT image.imageid, image.url, image.colors
             FROM image
             INNER JOIN car ON image.imageid = car.imageid
             WHERE car.make = $1 AND car.model = $2 AND car.year = $3
@@ -78,11 +78,38 @@ impl Connection {
         };
         let images = Image {
             id: ImageId(res.get("imageid")),
-            url: res.get("url")
+            url: res.get("url"),
+            colors: res.get("colors"),
         };
 
         Ok(images)
+    }
 
+    pub async fn add_new_image(
+        &self,
+        new_image: NewImage,
+    ) -> Result<Image, Error> {
+        let query = sqlx::query(
+            r#"
+            INSERT INTO image (url, colors)
+            VALUES($1, $2)
+            RETURNING imageid, url, colors
+        "#)
+            .bind(new_image.url)
+            .bind(new_image.colors)
+            .map(|row| Image {
+                id: ImageId(row.get("imageid")),
+                url: row.get("url"),
+                colors: row.get("colors"),
+            });
+
+        match query.fetch_one(&self.connection).await {
+            Ok(res) => Ok(res),
+            Err(e) => {
+                eprintln!("Database error {:?}", e);
+                Err(Error::RowNotFound)
+            }
+        }
     }
 }
 

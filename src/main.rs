@@ -1,11 +1,15 @@
 mod db;
 mod types;
 mod handle_errors;
+mod functionality;
 
 use std::collections::HashMap;
 use reqwest::StatusCode;
 use warp::{Filter, http::Method, Rejection, Reply};
+use crate::functionality::color_swap;
+use crate::functionality::color_swap::color_swap;
 use crate::types::carparams::{CarParams, extract_car_params};
+use crate::types::image::NewImage;
 
 #[tokio::main]
 async fn main() {
@@ -35,8 +39,17 @@ async fn main() {
         .and(db_filter.clone())
         .and_then(get_car_to_visualize);
 
+    let post_new_image = warp::post()
+        .and(warp::path("cars"))
+        .and(warp::path("newimage"))
+        .and(db_filter.clone())
+        .and(warp::body::json())
+        .and_then(post_new_image);
+
+
     let routes = get_cars
         .or(get_cars_to_visualize)
+        .or(post_new_image)
         .with(cors);
 
     warp::serve(routes)
@@ -91,4 +104,23 @@ pub async fn get_car_to_visualize(
         }
     };
     Ok(warp::reply::json(&res))
+}
+
+
+pub async fn post_new_image(
+    db: db::Connection,
+    image: NewImage
+) -> Result<impl Reply, Rejection> {
+    color_swap::color_swap(image.url, image.colors).await;
+
+    /*
+    if let Err(e) = db.add_new_image(image).await {
+        return Err(warp::reject::reject());
+    }
+
+     */
+    Ok(warp::reply::with_status(
+        "Images Added Successfully",
+        StatusCode::OK,
+    ))
 }
