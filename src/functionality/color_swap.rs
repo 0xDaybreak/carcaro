@@ -1,15 +1,15 @@
 use std::io::Read;
 use crate::handle_errors::Error;
-use image::{GenericImageView, Rgba, RgbaImage};
+use image::{DynamicImage, GenericImageView, Rgba, RgbaImage};
 
 pub async fn color_swap(
     base_urls: Vec<String>,
-    target_color: [i32;3],
-    mask_urls: Vec<String>
+    target_color: [i32; 3],
+    mask_urls: Vec<String>,
 ) -> Result<(), Error> {
     extract_mask_and_model(base_urls, "base").await.expect("TODO: panic message");
     extract_mask_and_model(mask_urls, "mask").await.expect("TODO: panic message");
-
+    apply_hue_shift().await;
 
 
     Ok(())
@@ -17,7 +17,7 @@ pub async fn color_swap(
 
 pub async fn extract_mask_and_model(
     urls: Vec<String>,
-    dir: &str
+    dir: &str,
 ) -> Result<(), Error> {
     let mut i = 1;
     for u in urls {
@@ -28,7 +28,7 @@ pub async fn extract_mask_and_model(
         let img_bytes = response.bytes().await.unwrap();
 
         let image = image::load_from_memory(&img_bytes).unwrap();
-        let filename = format!("src/{}/saved_{}.png", i, dir);
+        let filename = format!("src/{}/saved_{}.png", dir, i);
         i += i;
         image.save(filename).expect("failed to save");
     }
@@ -36,31 +36,48 @@ pub async fn extract_mask_and_model(
 }
 
 
-
 pub async fn apply_hue_shift() {
-    let mut i = 1;
-
     let hue_adjustment = 180;
-    while i <= 12 {
-        let input = format!("src/mask/saved_{}.png", i);
+    for i in 1..=1 {
+        let base_input = format!("src/base/saved_{}.png", i);
+        let mask_input = format!("src/mask/saved_{}.png", i);
         let output = format!("src/base/saved_{}.png", i);
-        let mut image = image::open(input).expect("Failed to open image");
-        let rgba_image = image.to_rgba8();
-        let (width, height) = rgba_image.dimensions();
-        let mut transformed_image = RgbaImage::new(width, height);
-        for y in 0..height {
-            for x in 0..width {
-                let pixel = rgba_image.get_pixel(x, y);
-                let transformed_pixel = adjust_hue(pixel, hue_adjustment);
-                transformed_image.put_pixel(x, y, transformed_pixel);
-            }
-        }
-        transformed_image.save(output).expect("Failed to save image");
-        i += 1;
+        let mut base_image = image::open(&base_input).expect("Failed to open image");
+        let mut mask_image = image::open(&mask_input).expect("Failed to open image");
+        shift_colors(&mut mask_image, hue_adjustment).await;
+        overlay_images(&mut base_image, &mask_image);
+        base_image.save(output).expect("Failed to save image");
     }
-
-
 }
+
+
+pub async fn shift_colors(
+    image: &mut DynamicImage,
+    hue_shift: i16,
+) {
+    let rgba_image = image.to_rgba8();
+    let (width, height) = rgba_image.dimensions();
+    let mut transformed_image = RgbaImage::new(width, height);
+    for y in 0..height {
+        for x in 0..width {
+            let pixel = rgba_image.get_pixel(x, y);
+            let transformed_pixel = adjust_hue(pixel, hue_shift);
+            transformed_image.put_pixel(x, y, transformed_pixel);
+        }
+    }
+    *image = DynamicImage::ImageRgba8(transformed_image);
+}
+
+
+fn overlay_images(base_image: &mut DynamicImage, mask_image: &DynamicImage) {
+    let (base_width, base_height) = base_image.dimensions();
+    let (mask_width, mask_height) = mask_image.dimensions();
+    let resized_mask = image::imageops::resize(mask_image, base_width, base_height, image::imageops::FilterType::Nearest);
+    let mut cloned_base = base_image.clone();
+    image::imageops::overlay(&mut cloned_base, &resized_mask, 0, 0);
+    *base_image = cloned_base;
+}
+
 
 fn adjust_hue(pixel: &Rgba<u8>, hue_adjustment: i16) -> Rgba<u8> {
     let (mut h, s, v) = rgb_to_hsv(pixel[0], pixel[1], pixel[2]);
@@ -68,6 +85,7 @@ fn adjust_hue(pixel: &Rgba<u8>, hue_adjustment: i16) -> Rgba<u8> {
     let (r, g, b) = hsv_to_rgb(h, s, v);
     Rgba([r, g, b, pixel[3]])
 }
+
 fn rgb_to_hsv(r: u8, g: u8, b: u8) -> (u16, f32, f32) {
     let r = r as f32 / 255.0;
     let g = g as f32 / 255.0;

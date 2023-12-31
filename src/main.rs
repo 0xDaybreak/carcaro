@@ -10,6 +10,8 @@ use crate::functionality::color_swap;
 use crate::functionality::color_swap::color_swap;
 use crate::types::carparams::{CarParams, extract_car_params};
 use crate::types::image::NewImage;
+use crate::types::image_request::ImageRequest;
+use crate::types::mask::Mask;
 
 #[tokio::main]
 async fn main() {
@@ -109,9 +111,9 @@ pub async fn get_car_to_visualize(
 
 pub async fn post_new_image(
     db: db::Connection,
-    image: NewImage
+    image_request: ImageRequest
 ) -> Result<impl Reply, Rejection> {
-    color_swap::color_swap(image.url, image.colors).await;
+    color_swap::color_swap(image_request.image.url, image_request.image.colors, image_request.mask.url).await;
 
     /*
     if let Err(e) = db.add_new_image(image).await {
