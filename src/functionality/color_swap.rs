@@ -19,9 +19,8 @@ pub async fn extract_mask_and_model(
     urls: Vec<String>,
     dir: &str,
 ) -> Result<(), Error> {
-    let mut i = 1;
-    for u in urls {
-        let response = reqwest::get(&u).await.unwrap();
+    for (i, u) in urls.iter().enumerate() {
+        let response = reqwest::get(u).await.unwrap();
         if !response.status().is_success() {
             return Err(Error::ColorSwapError);
         }
@@ -29,7 +28,6 @@ pub async fn extract_mask_and_model(
 
         let image = image::load_from_memory(&img_bytes).unwrap();
         let filename = format!("src/{}/saved_{}.png", dir, i);
-        i += i;
         image.save(filename).expect("failed to save");
     }
     Ok(())
@@ -38,7 +36,7 @@ pub async fn extract_mask_and_model(
 
 pub async fn apply_hue_shift() {
     let hue_adjustment = 180;
-    for i in 1..=1 {
+    for i in 0..=11 {
         let base_input = format!("src/base/saved_{}.png", i);
         let mask_input = format!("src/mask/saved_{}.png", i);
         let output = format!("src/base/saved_{}.png", i);
