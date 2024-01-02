@@ -1,6 +1,12 @@
 use std::io::Read;
 use crate::handle_errors::Error;
 use image::{DynamicImage, GenericImageView, Rgba, RgbaImage};
+use crate::types::image::NewImage;
+use azure_core::error::{ErrorKind, ResultExt};
+use azure_storage::prelude::*;
+use azure_storage_blobs::prelude::*;
+use futures::stream::StreamExt;
+use crate::functionality::container_generation;
 
 pub async fn color_swap(
     base_urls: Vec<String>,
@@ -10,8 +16,6 @@ pub async fn color_swap(
     extract_mask_and_model(base_urls, "base").await.expect("TODO: panic message");
     extract_mask_and_model(mask_urls, "mask").await.expect("TODO: panic message");
     apply_hue_shift().await;
-
-
     Ok(())
 }
 
@@ -34,7 +38,7 @@ pub async fn extract_mask_and_model(
 }
 
 
-pub async fn apply_hue_shift() {
+pub async fn apply_hue_shift() -> Result<(), Error> {
     let hue_adjustment = 180;
     for i in 0..=11 {
         let base_input = format!("src/base/saved_{}.png", i);
@@ -46,6 +50,7 @@ pub async fn apply_hue_shift() {
         overlay_images(&mut base_image, &mask_image);
         base_image.save(output).expect("Failed to save image");
     }
+    Ok(())
 }
 
 
@@ -139,4 +144,3 @@ fn hsv_to_rgb(h: u16, s: f32, v: f32) -> (u8, u8, u8) {
         ((b + m) * 255.0).round() as u8,
     )
 }
-
