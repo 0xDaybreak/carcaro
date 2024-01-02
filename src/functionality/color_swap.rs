@@ -1,12 +1,6 @@
 use std::io::Read;
 use crate::handle_errors::Error;
 use image::{DynamicImage, GenericImageView, Rgba, RgbaImage};
-use crate::types::image::NewImage;
-use azure_core::error::{ErrorKind, ResultExt};
-use azure_storage::prelude::*;
-use azure_storage_blobs::prelude::*;
-use futures::stream::StreamExt;
-use crate::functionality::container_generation;
 
 pub async fn color_swap(
     base_urls: Vec<String>,
@@ -64,8 +58,10 @@ pub async fn shift_colors(
     for y in 0..height {
         for x in 0..width {
             let pixel = rgba_image.get_pixel(x, y);
-            let transformed_pixel = adjust_hue(pixel, hue_shift);
-            transformed_image.put_pixel(x, y, transformed_pixel);
+            if pixel[3] != 0 {
+                let transformed_pixel = adjust_hue(pixel, hue_shift);
+                transformed_image.put_pixel(x, y, transformed_pixel);
+            }
         }
     }
     *image = DynamicImage::ImageRgba8(transformed_image);
@@ -74,7 +70,6 @@ pub async fn shift_colors(
 
 fn overlay_images(base_image: &mut DynamicImage, mask_image: &DynamicImage) {
     let (base_width, base_height) = base_image.dimensions();
-    let (mask_width, mask_height) = mask_image.dimensions();
     let resized_mask = image::imageops::resize(mask_image, base_width, base_height, image::imageops::FilterType::Nearest);
     let mut cloned_base = base_image.clone();
     image::imageops::overlay(&mut cloned_base, &resized_mask, 0, 0);

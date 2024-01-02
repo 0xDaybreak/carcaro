@@ -7,8 +7,6 @@ use std::collections::HashMap;
 use reqwest::StatusCode;
 use warp::{Filter, http::Method, Rejection, Reply};
 use crate::functionality::{color_swap, container_generation};
-use crate::functionality::color_swap::color_swap;
-use crate::types::car::Car;
 use crate::types::carparams::{CarParams, extract_car_params};
 use crate::types::image::{Image, NewImage};
 use crate::types::image_request::ImageRequest;
@@ -128,7 +126,7 @@ pub async fn post_new_image(
     };
     color_swap::color_swap(image_request.image.url, image_request.image.colors, image_request.mask.url).await?;
 
-    let new_image_urls = container_generation::generate_and_upload("test6".to_string()).await.unwrap();
+    let new_image_urls = container_generation::generate_and_upload("test8".to_string()).await.unwrap();
     let new_image = NewImage {
         url:new_image_urls,
         colors: image_request.image.colors,
