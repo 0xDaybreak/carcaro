@@ -3,7 +3,6 @@ use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
 use warp::hyper::body::HttpBody;
 use crate::types::car::{Car, CarId};
 use crate::types::image::{Image, ImageId, NewImage};
-use crate::types::image_request::ImageRequest;
 use crate::types::mask::Mask;
 
 #[derive(Clone)]

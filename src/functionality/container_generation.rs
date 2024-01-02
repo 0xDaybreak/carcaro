@@ -1,11 +1,9 @@
-use azure_core::error::{ErrorKind, ResultExt};
 use azure_storage::prelude::*;
 use azure_storage_blobs::prelude::*;
-use futures::stream::StreamExt;
 use std::fs::File;
 use std::io::Read;
 use azure_core::auth::Secret;
-use azure_storage::shared_access_signature::service_sas::{BlobSharedAccessSignature, SasKey};
+use azure_storage::shared_access_signature::service_sas::{BlobSharedAccessSignature};
 use time::{Duration, OffsetDateTime};
 use walkdir::WalkDir;
 

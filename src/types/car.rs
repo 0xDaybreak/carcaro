@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use crate::types::image::Image;
 
 #[derive(Eq, Hash, PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub struct CarId(pub i32);
