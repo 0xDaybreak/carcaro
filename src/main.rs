@@ -6,12 +6,12 @@ mod functionality;
 use std::collections::HashMap;
 use reqwest::StatusCode;
 use warp::{Filter, http::Method, Rejection, Reply};
-use crate::functionality::color_swap;
+use crate::functionality::{color_swap, container_generation};
 use crate::functionality::color_swap::color_swap;
+use crate::types::car::Car;
 use crate::types::carparams::{CarParams, extract_car_params};
-use crate::types::image::NewImage;
+use crate::types::image::{Image, NewImage};
 use crate::types::image_request::ImageRequest;
-use crate::types::mask::Mask;
 
 #[tokio::main]
 async fn main() {
@@ -67,6 +67,7 @@ pub async fn get_cars_with_images(
         .await {
         Ok( res) => res,
         Err(e) => {
+            eprintln!("Error {}", e);
             return Err(warp::reject::not_found())
         }
     };
@@ -111,18 +112,35 @@ pub async fn get_car_to_visualize(
 
 pub async fn post_new_image(
     db: db::Connection,
-    image_request: ImageRequest
+    image: Image
 ) -> Result<impl Reply, Rejection> {
-    color_swap::color_swap(image_request.image.url, image_request.image.colors, image_request.mask.url).await;
+    let mask = match db.extract_mask(image.id.0)
+        .await {
+        Ok(mask) => mask,
+        Err(e) => {
+            return Err(warp::reject::not_found())
+        }
+    };
 
-    /*
-    if let Err(e) = db.add_new_image(image).await {
-        return Err(warp::reject::reject());
-    }
+    let image_request = ImageRequest {
+        image,
+        mask,
+    };
+    color_swap::color_swap(image_request.image.url, image_request.image.colors, image_request.mask.url).await?;
 
-     */
-    Ok(warp::reply::with_status(
-        "Images Added Successfully",
-        StatusCode::OK,
-    ))
+    let new_image_urls = container_generation::generate_and_upload("test6".to_string()).await.unwrap();
+    let new_image = NewImage {
+        url:new_image_urls,
+        colors: image_request.image.colors,
+        maskid: 1,
+    };
+
+    let res = match db.add_new_image(new_image)
+        .await {
+        Ok(res) => res,
+        Err(e) => {
+            return Err(warp::reject::not_found())
+        }
+    };
+    Ok(warp::reply::json(&res))
 }

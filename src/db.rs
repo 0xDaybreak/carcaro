@@ -1,8 +1,10 @@
 use sqlx::{Error, query, Row};
-use sqlx::postgres::{PgPool, PgPoolOptions};
+use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
 use warp::hyper::body::HttpBody;
 use crate::types::car::{Car, CarId};
 use crate::types::image::{Image, ImageId, NewImage};
+use crate::types::image_request::ImageRequest;
+use crate::types::mask::Mask;
 
 #[derive(Clone)]
 pub struct Connection {
@@ -59,7 +61,7 @@ impl Connection {
     pub async fn get_car_to_visualize(&self, make: String, model: String, year: i32) -> Result<Image, Error> {
         let query = query(
             r#"
-            SELECT image.imageid, image.url, image.colors
+            SELECT image.imageid, image.url, image.colors, image.maskid
             FROM image
             INNER JOIN car ON image.imageid = car.imageid
             WHERE car.make = $1 AND car.model = $2 AND car.year = $3
@@ -80,6 +82,7 @@ impl Connection {
             id: ImageId(res.get("imageid")),
             url: res.get("url"),
             colors: res.get("colors"),
+            maskid: res.get("maskid")
         };
 
         Ok(images)
@@ -91,22 +94,49 @@ impl Connection {
     ) -> Result<Image, Error> {
         let query = sqlx::query(
             r#"
-            INSERT INTO image (url, colors)
-            VALUES($1, $2)
-            RETURNING imageid, url, colors
+            INSERT INTO image (url, colors, maskid)
+            VALUES($1, $2, $3)
+            RETURNING imageid, url, colors, maskid
         "#)
             .bind(new_image.url)
             .bind(new_image.colors)
+            .bind(new_image.maskid)
             .map(|row| Image {
                 id: ImageId(row.get("imageid")),
                 url: row.get("url"),
                 colors: row.get("colors"),
+                maskid: row.get("maskid"),
             });
 
         match query.fetch_one(&self.connection).await {
             Ok(res) => Ok(res),
             Err(e) => {
                 eprintln!("Database error {:?}", e);
+                Err(Error::RowNotFound)
+            }
+        }
+    }
+
+    pub async fn extract_mask(
+        &self, imageid: i32
+    ) -> Result<Mask, Error> {
+        let query = sqlx::query(
+            r#"
+                SELECT mask.url
+                FROM image
+                INNER JOIN mask ON image.maskid = mask.maskid
+                WHERE image.imageid = $1
+            "#)
+            .bind(imageid)
+            .map(|row:PgRow| Mask {
+                id: 0,
+                url: row.get("url"),
+            });
+
+        match query.fetch_one(&self.connection).await {
+            Ok(res) => Ok(res),
+            Err(e) => {
+                eprintln!("Error {}", e);
                 Err(Error::RowNotFound)
             }
         }
