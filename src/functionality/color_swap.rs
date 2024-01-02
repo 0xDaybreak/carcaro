@@ -1,7 +1,7 @@
 use std::io::Read;
+use colorsys::{Hsl};
 use crate::handle_errors::Error;
 use image::{DynamicImage, GenericImageView, Rgba};
-use rayon::iter::ParallelIterator;
 
 pub async fn color_swap(
     base_urls: Vec<String>,
@@ -59,7 +59,7 @@ pub async fn apply_color_shift(target_color: [u8; 3]) -> Result<(), Error> {
         let mask_image = image::open(&mask_input).expect("Failed to open image");
         colorize_images(&mut base_image, &mask_image, target_color).await;
         println!("colorized images");
-        base_image.save(output).expect("Failed to save image");
+        base_image.to_rgba8().save(output).expect("Failed to save image");
     }
     Ok(())
 }
@@ -68,83 +68,37 @@ async fn colorize_images(
     base_image: &mut DynamicImage,
     mask_image: &DynamicImage,
     target_color: [u8; 3],
-) {
-    let mut rgba_base_image = base_image.to_rgba8();
-    let mut rgba_mask_image = mask_image.to_rgba8();
+) -> Result<(), Error> {
+    let mut rgba_base_image = base_image.to_rgba32f();
+    let rgba_mask_image = mask_image.to_rgba8();
 
-    for (base_pixel, mask_pixel) in rgba_base_image.pixels_mut().zip(rgba_mask_image.pixels()) {
-        if mask_pixel.0[3] != 0 {
-            let colorized_pixel = adjust_color(base_pixel, target_color);
-            *base_pixel = colorized_pixel;
+    for (pixel, mask_pixel) in rgba_base_image.pixels_mut().zip(rgba_mask_image.pixels()) {
+        if mask_pixel[0] != 0 || mask_pixel[1] != 0 || mask_pixel[2] != 0 {
+            *pixel = adjust_color(&pixel, target_color);
         }
     }
 
-    *base_image = DynamicImage::ImageRgba8(rgba_base_image);
+    *base_image = DynamicImage::ImageRgba32F(rgba_base_image);
+    Ok(())
 }
 
-fn adjust_color(base_pixel: &Rgba<u8>, target_color: [u8; 3]) -> Rgba<u8> {
-    let (mut h, s, v) = rgb_to_hsv(base_pixel[0], base_pixel[1], base_pixel[2]);
-    let (r, g, b) = hsv_to_rgb(hue_from_rgb(target_color[0], target_color[1], target_color[2]), s, v);
-    Rgba([r, g, b, base_pixel[3]])
-}
+fn adjust_color(base_pixel: &Rgba<f32>, target_color: [u8; 3]) -> Rgba<f32> {
+    let r = base_pixel.0[0] as f64;
+    let g = base_pixel.0[1] as f64;
+    let b = base_pixel.0[2] as f64;
 
-fn hue_from_rgb(r: u8, g: u8, b: u8) -> u16 {
-    let (h, _, _) = rgb_to_hsv(r, g, b);
-    h
-}
+    let target_r = target_color[0] as f64;
+    let target_g = target_color[1] as f64;
+    let target_b = target_color[2] as f64;
 
-fn rgb_to_hsv(r: u8, g: u8, b: u8) -> (u16, f32, f32) {
-    let r = r as f32 / 255.0;
-    let g = g as f32 / 255.0;
-    let b = b as f32 / 255.0;
+    let target_rgb = colorsys::Rgb::new(target_r, target_g, target_b, None);
+    let target_hue = Hsl::from(target_rgb).hue();
 
-    let max = r.max(g).max(b);
-    let min = r.min(g).min(b);
-    let delta = max - min;
+    let base_rgb:colorsys::Rgb = colorsys::Rgb::new(r, g, b, None);
+    let mut base_hsl = Hsl::from(base_rgb);
+    base_hsl.set_hue(0.);
+    base_hsl.set_hue(target_hue);
+    let base_rgb:colorsys::Rgb = colorsys::Rgb::from(&mut base_hsl);
 
-    let hue = if delta.abs() < f32::EPSILON {
-        0.0
-    } else if max == r {
-        60.0 * ((g - b) / delta % 6.0)
-    } else if max == g {
-        60.0 * ((b - r) / delta + 2.0)
-    } else {
-        60.0 * ((r - g) / delta + 4.0)
-    };
-
-    let saturation = if max.abs() < f32::EPSILON {
-        0.0
-    } else {
-        delta / max
-    };
-
-    let value = max;
-
-    (hue as u16, saturation, value)
-}
-
-fn hsv_to_rgb(h: u16, s: f32, v: f32) -> (u8, u8, u8) {
-    let c = v * s;
-    let x = c * (1.0 - ((h as f32 / 60.0) % 2.0 - 1.0).abs());
-    let m = v - c;
-
-    let (r, g, b) = if h < 60 {
-        (c, x, 0.0)
-    } else if h < 120 {
-        (x, c, 0.0)
-    } else if h < 180 {
-        (0.0, c, x)
-    } else if h < 240 {
-        (0.0, x, c)
-    } else if h < 300 {
-        (x, 0.0, c)
-    } else {
-        (c, 0.0, x)
-    };
-
-    (
-        ((r + m) * 255.0).round() as u8,
-        ((g + m) * 255.0).round() as u8,
-        ((b + m) * 255.0).round() as u8,
-    )
+    Rgba([base_rgb.red() as f32, base_rgb.green() as f32, base_rgb.blue() as f32, base_pixel[3]])
 }
