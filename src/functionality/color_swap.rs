@@ -1,87 +1,96 @@
 use std::io::Read;
 use crate::handle_errors::Error;
-use image::{DynamicImage, GenericImageView, Rgba, RgbaImage};
+use image::{DynamicImage, GenericImageView, Rgba};
+use rayon::iter::ParallelIterator;
 
 pub async fn color_swap(
     base_urls: Vec<String>,
-    target_color: [i32; 3],
+    target_color: [u8; 3],
     mask_urls: Vec<String>,
 ) -> Result<(), Error> {
+    println!("Started mask and models extraction");
     extract_mask_and_model(base_urls, "base").await.expect("TODO: panic message");
     extract_mask_and_model(mask_urls, "mask").await.expect("TODO: panic message");
-    apply_hue_shift().await;
+    println!("Extracted mask and models");
+    apply_color_shift(target_color).await.expect("TODO: panic message");
+    println!("applied hue shift");
     Ok(())
 }
 
-pub async fn extract_mask_and_model(
+async fn extract_mask_and_model(
     urls: Vec<String>,
     dir: &str,
 ) -> Result<(), Error> {
-    for (i, u) in urls.iter().enumerate() {
-        let response = reqwest::get(u).await.unwrap();
-        if !response.status().is_success() {
-            return Err(Error::ColorSwapError);
-        }
-        let img_bytes = response.bytes().await.unwrap();
+    let mut tasks = Vec::new();
+    let dir_arc = std::sync::Arc::new(dir.to_string());
 
-        let image = image::load_from_memory(&img_bytes).unwrap();
-        let filename = format!("src/{}/saved_{}.png", dir, i);
-        image.save(filename).expect("failed to save");
+
+    for (i, u) in urls.iter().enumerate() {
+        let task = tokio::spawn(prepare_images(i, u.clone(), dir_arc.clone()));
+        tasks.push(task)
+    }
+    for task in tasks {
+        task.await.unwrap().expect("TODO: panic message");
     }
     Ok(())
 }
 
 
-pub async fn apply_hue_shift() -> Result<(), Error> {
-    let hue_adjustment = 180;
+async fn prepare_images(i: usize, url: String, dir: std::sync::Arc<String>) -> Result<(), Error> {
+    let response = reqwest::get(url).await.unwrap();
+    if !response.status().is_success() {
+        return Err(Error::ColorSwapError);
+    }
+    let img_bytes = response.bytes().await.unwrap();
+
+    let image = image::load_from_memory(&img_bytes).unwrap();
+    let filename = format!("src/{}/saved_{}.png", dir, i);
+    image.save(filename).expect("failed to save");
+    Ok(())
+}
+
+
+pub async fn apply_color_shift(target_color: [u8; 3]) -> Result<(), Error> {
     for i in 0..=11 {
         let base_input = format!("src/base/saved_{}.png", i);
         let mask_input = format!("src/mask/saved_{}.png", i);
         let output = format!("src/base/saved_{}.png", i);
         let mut base_image = image::open(&base_input).expect("Failed to open image");
-        let mut mask_image = image::open(&mask_input).expect("Failed to open image");
-        shift_colors(&mut mask_image, hue_adjustment).await;
-        overlay_images(&mut base_image, &mask_image);
+        let mask_image = image::open(&mask_input).expect("Failed to open image");
+        colorize_images(&mut base_image, &mask_image, target_color).await;
+        println!("colorized images");
         base_image.save(output).expect("Failed to save image");
     }
     Ok(())
 }
 
-
-pub async fn shift_colors(
-    image: &mut DynamicImage,
-    hue_shift: i16,
+async fn colorize_images(
+    base_image: &mut DynamicImage,
+    mask_image: &DynamicImage,
+    target_color: [u8; 3],
 ) {
-    let rgba_image = image.to_rgba8();
-    let (width, height) = rgba_image.dimensions();
-    let mut transformed_image = RgbaImage::new(width, height);
-    for y in 0..height {
-        for x in 0..width {
-            let pixel = rgba_image.get_pixel(x, y);
-            if pixel[3] != 0 {
-                let transformed_pixel = adjust_hue(pixel, hue_shift);
-                transformed_image.put_pixel(x, y, transformed_pixel);
-            }
+    let mut rgba_base_image = base_image.to_rgba8();
+    let mut rgba_mask_image = mask_image.to_rgba8();
+
+    for (base_pixel, mask_pixel) in rgba_base_image.pixels_mut().zip(rgba_mask_image.pixels()) {
+        if mask_pixel.0[3] != 0 {
+            let colorized_pixel = adjust_color(base_pixel, target_color);
+            *base_pixel = colorized_pixel;
         }
     }
-    *image = DynamicImage::ImageRgba8(transformed_image);
+
+    *base_image = DynamicImage::ImageRgba8(rgba_base_image);
 }
 
-
-fn overlay_images(base_image: &mut DynamicImage, mask_image: &DynamicImage) {
-    let (base_width, base_height) = base_image.dimensions();
-    let resized_mask = image::imageops::resize(mask_image, base_width, base_height, image::imageops::FilterType::Nearest);
-    let mut cloned_base = base_image.clone();
-    image::imageops::overlay(&mut cloned_base, &resized_mask, 0, 0);
-    *base_image = cloned_base;
+fn adjust_color(base_pixel: &Rgba<u8>, target_color: [u8; 3]) -> Rgba<u8> {
+    let (mut h, s, v) = rgb_to_hsv(base_pixel[0], base_pixel[1], base_pixel[2]);
+    let (r, g, b) = hsv_to_rgb(hue_from_rgb(target_color[0], target_color[1], target_color[2]), s, v);
+    Rgba([r, g, b, base_pixel[3]])
 }
 
-
-fn adjust_hue(pixel: &Rgba<u8>, hue_adjustment: i16) -> Rgba<u8> {
-    let (mut h, s, v) = rgb_to_hsv(pixel[0], pixel[1], pixel[2]);
-    h = ((h as i16 + hue_adjustment + 360) % 360) as u16;
-    let (r, g, b) = hsv_to_rgb(h, s, v);
-    Rgba([r, g, b, pixel[3]])
+fn hue_from_rgb(r: u8, g: u8, b: u8) -> u16 {
+    let (h, _, _) = rgb_to_hsv(r, g, b);
+    h
 }
 
 fn rgb_to_hsv(r: u8, g: u8, b: u8) -> (u16, f32, f32) {
