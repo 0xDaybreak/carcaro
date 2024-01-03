@@ -126,7 +126,7 @@ pub async fn post_new_image(
     };
     color_swap::color_swap(image_request.image.url, image_request.image.colors, image_request.mask.url).await?;
 
-    let new_image_urls = container_generation::generate_and_upload("test8".to_string()).await.unwrap();
+    let new_image_urls = container_generation::generate_and_upload("test10".to_string()).await.unwrap();
     let new_image = NewImage {
         url:new_image_urls,
         colors: image_request.image.colors,

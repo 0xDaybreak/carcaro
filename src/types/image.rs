@@ -8,13 +8,13 @@ pub struct ImageId(pub i32);
 pub struct Image {
     pub id: ImageId,
     pub url: Vec<String>,
-    pub colors: [i32;3],
+    pub colors: [u8;3],
     pub maskid: i32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NewImage {
     pub url: Vec<String>,
-    pub colors: [i32;3],
+    pub colors: [u8;3],
     pub maskid: i32,
 }
