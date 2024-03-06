@@ -4,12 +4,14 @@ mod handle_errors;
 mod functionality;
 
 use std::collections::HashMap;
+use std::net::ToSocketAddrs;
 use reqwest::StatusCode;
 use warp::{Filter, http::Method, Rejection, Reply};
 use crate::functionality::{color_swap, container_generation};
 use crate::types::carparams::{CarParams, extract_car_params};
 use crate::types::image::{Image, NewImage};
 use crate::types::image_request::ImageRequest;
+use crate::types::user::{NewUser, User};
 
 #[tokio::main]
 async fn main() {
@@ -46,14 +48,22 @@ async fn main() {
         .and(warp::body::json())
         .and_then(post_new_image);
 
+    let post_new_user = warp::post()
+        .and(warp::path("user"))
+        .and(warp::path("newuser"))
+        .and(db_filter.clone())
+        .and(warp::body::json())
+        .and_then(post_new_user);
+
 
     let routes = get_cars
         .or(get_cars_to_visualize)
         .or(post_new_image)
+        .or(post_new_user)
         .with(cors);
 
     warp::serve(routes)
-        .run(([127, 0, 0, 1], 7070))
+        .run(([127, 0, 0, 1], 7071))
         .await;
 
 }
@@ -126,7 +136,7 @@ pub async fn post_new_image(
     };
     color_swap::color_swap(image_request.image.url, image_request.image.colors, image_request.mask.url).await?;
 
-    let new_image_urls = container_generation::generate_and_upload("test10".to_string()).await.unwrap();
+    let new_image_urls = container_generation::generate_and_upload("t7t45549944783".to_string()).await.unwrap();
     let new_image = NewImage {
         url:new_image_urls,
         colors: image_request.image.colors,
@@ -134,6 +144,27 @@ pub async fn post_new_image(
     };
 
     let res = match db.add_new_image(new_image)
+        .await {
+        Ok(res) => res,
+        Err(e) => {
+            return Err(warp::reject::not_found())
+        }
+    };
+    Ok(warp::reply::json(&res))
+}
+pub async fn post_new_user(
+    db: db::Connection,
+    user: User
+) -> Result<impl Reply, Rejection> {
+
+    let user = NewUser{
+        email: user.email,
+        firstname: user.firstname,
+        lastname: user.lastname,
+        password_hash: user.password_hash,
+    };
+
+    let res = match db.create_user(user)
         .await {
         Ok(res) => res,
         Err(e) => {

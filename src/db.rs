@@ -4,6 +4,7 @@ use warp::hyper::body::HttpBody;
 use crate::types::car::{Car, CarId};
 use crate::types::image::{Image, ImageId, NewImage};
 use crate::types::mask::Mask;
+use crate::types::user::{NewUser, User, UserId};
 
 #[derive(Clone)]
 pub struct Connection {
@@ -136,6 +137,37 @@ impl Connection {
             Ok(res) => Ok(res),
             Err(e) => {
                 eprintln!("Error {}", e);
+                Err(Error::RowNotFound)
+            }
+        }
+    }
+
+    pub async fn create_user(
+        &self, new_user: NewUser
+    ) -> Result<User, Error> {
+        let query = sqlx::query(
+            r#"
+            INSERT INTO user (email, firstname, lastname, password)
+            VALUES ($1, $2, $3, $4)
+            RETURNING userid, email, firstname, lastname, password
+            "#
+        )
+            .bind(new_user.email)
+            .bind(new_user.firstname)
+            .bind(new_user.lastname)
+            .bind(new_user.password_hash)
+            .map(|row| User {
+                id: UserId(row.get("userid")),
+                email: row.get("email"),
+                firstname: row.get("firstname"),
+                lastname: row.get("lastname"),
+                password_hash: row.get("password"),
+            });
+
+        match query.fetch_one(&self.connection).await {
+            Ok(res) => Ok(res),
+            Err(e) => {
+                eprintln!("Database error {:?}", e);
                 Err(Error::RowNotFound)
             }
         }
