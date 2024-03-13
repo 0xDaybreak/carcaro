@@ -147,21 +147,23 @@ impl Connection {
     ) -> Result<User, Error> {
         let query = sqlx::query(
             r#"
-            INSERT INTO user (email, firstname, lastname, password)
-            VALUES ($1, $2, $3, $4)
-            RETURNING userid, email, firstname, lastname, password
+            INSERT INTO "user" (email, firstname, lastname, password, phonenumber)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING userid, email, firstname, lastname, password, phonenumber
             "#
         )
             .bind(new_user.email)
             .bind(new_user.firstname)
             .bind(new_user.lastname)
             .bind(new_user.password_hash)
-            .map(|row| User {
+            .bind(new_user.phone_number)
+            .map(|row:PgRow| User {
                 id: UserId(row.get("userid")),
                 email: row.get("email"),
                 firstname: row.get("firstname"),
                 lastname: row.get("lastname"),
                 password_hash: row.get("password"),
+                phone_number: row.get("phonenumber")
             });
 
         match query.fetch_one(&self.connection).await {

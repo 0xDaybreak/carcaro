@@ -157,11 +157,12 @@ pub async fn post_new_user(
     user: User
 ) -> Result<impl Reply, Rejection> {
 
-    let user = NewUser{
+    let user = NewUser {
         email: user.email,
         firstname: user.firstname,
         lastname: user.lastname,
         password_hash: user.password_hash,
+        phone_number: user.phone_number
     };
 
     let res = match db.create_user(user)

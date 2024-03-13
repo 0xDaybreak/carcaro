@@ -5,15 +5,17 @@ pub struct NewUser {
     pub email: String,
     pub firstname: String,
     pub lastname: String,
-    pub password_hash: String
+    pub password_hash: String,
+    pub phone_number: String,
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub struct User {
     pub id: UserId,
     pub email: String,
     pub firstname: String,
     pub lastname: String,
-    pub password_hash: String
+    pub password_hash: String,
+    pub phone_number: String,
 }
 
 
