@@ -21,11 +21,9 @@ async fn main() {
 
     let cors = warp::cors()
         .allow_any_origin()
-        .allow_header("content-type")
+        .allow_headers(vec!["Access-Control-Allow-Origin", "Origin", "Accept", "X-Requested-With", "Content-Type"])
         .allow_methods(
-       &[Method::PUT, Method::DELETE, Method::GET, Method::POST]
-        );
-
+       &[Method::PUT, Method::DELETE, Method::GET, Method::POST, Method::OPTIONS, Method::HEAD]);
 
     let get_cars = warp::get()
         .and(warp::path("cars"))
@@ -54,7 +52,6 @@ async fn main() {
         .and(db_filter.clone())
         .and(warp::body::json())
         .and_then(post_new_user);
-
 
     let routes = get_cars
         .or(get_cars_to_visualize)
@@ -165,6 +162,9 @@ pub async fn post_new_user(
         phone_number: user.phone_number
     };
 
+    println!("{:?}", user);
+
+
     let res = match db.create_user(user)
         .await {
         Ok(res) => res,
@@ -172,5 +172,7 @@ pub async fn post_new_user(
             return Err(warp::reject::not_found())
         }
     };
+
     Ok(warp::reply::json(&res))
 }
+
