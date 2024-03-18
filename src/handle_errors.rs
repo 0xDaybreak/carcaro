@@ -1,4 +1,5 @@
 use std::fmt::Formatter;
+use warp::log::Log;
 use warp::reject::Reject;
 
 #[derive(Debug)]
@@ -6,6 +7,11 @@ pub enum Error {
     ParseError(std::num::ParseIntError),
     MissingParams,
     ColorSwapError,
+}
+
+#[derive(Debug)]
+pub enum LoginError {
+    InvalidCredentials,
 }
 
 impl std::fmt::Display for Error {
@@ -24,4 +30,17 @@ impl std::fmt::Display for Error {
     }
 }
 
+
+impl std::fmt::Display for LoginError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            LoginError::InvalidCredentials => {
+                write!(f, "Invalid Credentials")
+            }
+        }
+    }
+}
+
 impl Reject for Error {}
+
+impl Reject for LoginError {}
