@@ -8,10 +8,11 @@ use std::net::ToSocketAddrs;
 use reqwest::StatusCode;
 use warp::{Filter, http::Method, Rejection, Reply};
 use crate::functionality::{color_swap, container_generation};
+use crate::handle_errors::LoginError;
 use crate::types::carparams::{CarParams, extract_car_params};
 use crate::types::image::{Image, NewImage};
 use crate::types::image_request::ImageRequest;
-use crate::types::user::{NewUser, User};
+use crate::types::user::{NewUser, User, UserCredentials};
 
 #[tokio::main]
 async fn main() {
@@ -53,8 +54,16 @@ async fn main() {
         .and(warp::body::json())
         .and_then(post_new_user);
 
+    let get_user_to_sign_in = warp::get()
+        .and(warp::path("user"))
+        .and(warp::path("signin"))
+        .and(db_filter.clone())
+        .and(warp::body::json())
+        .and_then(get_user_to_sign_in);
+
     let routes = get_cars
         .or(get_cars_to_visualize)
+        .or(get_user_to_sign_in)
         .or(post_new_image)
         .or(post_new_user)
         .with(cors);
@@ -94,6 +103,28 @@ pub async fn post_chosen_color(
 "Color posted successfully",
         StatusCode::OK,
     ))
+}
+
+pub async fn get_user_to_sign_in(
+    db: db::Connection,
+    user_credentials: UserCredentials
+) -> Result<impl Reply, Rejection> {
+
+    let email = user_credentials.email;
+
+    let user = match db.get_user_by_email(&email).await {
+        Ok(user) => user,
+        Err(_) => return Err(warp::reject::not_found()),
+    };
+    if user_credentials.password == user.password {
+        Ok(warp::reply::with_status(
+            "Sign in successful",
+            StatusCode::OK
+        ))
+    } else {
+        Err(warp::reject::custom(LoginError::InvalidCredentials))
+    }
+
 }
 
 pub async fn get_car_to_visualize(
