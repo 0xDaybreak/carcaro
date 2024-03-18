@@ -54,16 +54,16 @@ async fn main() {
         .and(warp::body::json())
         .and_then(post_new_user);
 
-    let get_user_to_sign_in = warp::get()
+    let post_user_to_sign_in = warp::post()
         .and(warp::path("user"))
         .and(warp::path("signin"))
         .and(db_filter.clone())
         .and(warp::body::json())
-        .and_then(get_user_to_sign_in);
+        .and_then(post_user_to_sign_in);
 
     let routes = get_cars
         .or(get_cars_to_visualize)
-        .or(get_user_to_sign_in)
+        .or(post_user_to_sign_in)
         .or(post_new_image)
         .or(post_new_user)
         .with(cors);
@@ -105,7 +105,7 @@ pub async fn post_chosen_color(
     ))
 }
 
-pub async fn get_user_to_sign_in(
+pub async fn post_user_to_sign_in(
     db: db::Connection,
     user_credentials: UserCredentials
 ) -> Result<impl Reply, Rejection> {
