@@ -8,10 +8,10 @@ use time::{Duration, OffsetDateTime};
 use walkdir::WalkDir;
 
 const ACCOUNT: &str = "wrapmycar";
-***REMOVED***
-
 pub async fn generate_and_upload(container_name:String) -> azure_core::Result<Vec<String>> {
-    let storage_credentials = StorageCredentials::access_key(ACCOUNT, ACCESS_KEY);
+    let access_key_string = std::fs::read_to_string("../key.txt").expect("Failed to read access key from key.txt");
+    let access_key_trimmed = access_key_string.trim().to_string();
+    let storage_credentials = StorageCredentials::access_key(ACCOUNT, access_key_trimmed.clone());
     let client = ClientBuilder::new(ACCOUNT, storage_credentials);
     client
         .clone()
@@ -58,7 +58,7 @@ pub async fn generate_and_upload(container_name:String) -> azure_core::Result<Ve
             ..Default::default()
         };
         let signed_token = BlobSharedAccessSignature::new(
-            Secret::new(ACCESS_KEY),
+            Secret::new(access_key_trimmed.clone()),
             resource,
             permissions,
             OffsetDateTime::now_utc() + Duration::days(30),
