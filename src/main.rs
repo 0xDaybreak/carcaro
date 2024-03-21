@@ -40,6 +40,12 @@ async fn main() {
         .and(db_filter.clone())
         .and_then(get_car_to_visualize);
 
+    let get_colors = warp::get()
+        .and(warp::path("colors"))
+        .and(warp::path::end())
+        .and(db_filter.clone())
+        .and_then(get_colors);
+
     let post_new_image = warp::post()
         .and(warp::path("cars"))
         .and(warp::path("newimage"))
@@ -63,6 +69,7 @@ async fn main() {
 
     let routes = get_cars
         .or(get_cars_to_visualize)
+        .or(get_colors)
         .or(post_user_to_sign_in)
         .or(post_new_image)
         .or(post_new_user)
@@ -207,3 +214,17 @@ pub async fn post_new_user(
     Ok(warp::reply::json(&res))
 }
 
+pub async fn get_colors(
+    db: db::Connection,
+) -> Result<impl Reply, Rejection> {
+    let res = match db.get_colors()
+        .await {
+        Ok(res) => res,
+        Err(e) => {
+            eprintln!("Error {}", e);
+            return Err(warp::reject::not_found())
+        }
+    };
+
+    return Ok(warp::reply::json(&res));
+}

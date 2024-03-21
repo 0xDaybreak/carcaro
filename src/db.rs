@@ -2,6 +2,7 @@ use sqlx::{Error, query, Row};
 use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
 use warp::hyper::body::HttpBody;
 use crate::types::car::{Car, CarId};
+use crate::types::color::Color;
 use crate::types::image::{Image, ImageId, NewImage};
 use crate::types::mask::Mask;
 use crate::types::user::{NewUser, User, UserCredentials, UserId};
@@ -140,6 +141,38 @@ impl Connection {
                 Err(Error::RowNotFound)
             }
         }
+    }
+
+    pub async fn get_colors(
+        &self
+    ) -> Result<Vec<Color>, Error> {
+        let query = sqlx::query(
+            r#"
+            SELECT color.ral, color.name, color.hex
+            FROM color
+            "#
+        );
+
+        let result = match query.fetch_all(&self.connection).await {
+            Ok(result) => result,
+            Err(e) => {
+                eprintln!("Error executing query: {:?}", e);
+                return Err(Error::RowNotFound);
+            }
+        };
+        let colors: Vec<Color> = result
+            .into_iter()
+            .map(|row| {
+                let color = Color {
+                    ral: row.get("ral"),
+                    color_name: row.get("name"),
+                    hex: row.get("hex"),
+                };
+                color
+            })
+            .collect();
+
+        Ok(colors)
     }
 
     pub async fn get_user_by_email(

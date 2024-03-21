@@ -1,5 +1,4 @@
 use std::fmt::Formatter;
-use warp::log::Log;
 use warp::reject::Reject;
 
 #[derive(Debug)]
