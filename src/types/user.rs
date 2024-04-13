@@ -18,10 +18,8 @@ pub struct User {
     pub phone_number: String,
 }
 
-
 #[derive(Eq, Hash, PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub struct UserId(pub i32);
-
 
 #[derive(Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub struct UserCredentials {

@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use crate::handle_errors::Error;
+use std::collections::HashMap;
 
 #[derive(Default, Debug)]
 pub struct CarParams {
@@ -13,7 +13,8 @@ pub(crate) fn extract_car_params(params: HashMap<String, String>) -> Result<CarP
         return Ok(CarParams {
             make: params.get("make").unwrap().to_string(),
             model: params.get("model").unwrap().to_string(),
-            year: params.get("year")
+            year: params
+                .get("year")
                 .unwrap()
                 .parse::<i32>()
                 .map_err(Error::ParseError)?,

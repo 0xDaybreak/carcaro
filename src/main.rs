@@ -1,29 +1,40 @@
 mod db;
-mod types;
-mod handle_errors;
 mod functionality;
+mod handle_errors;
+mod types;
 
-use std::collections::HashMap;
-use std::net::ToSocketAddrs;
-use reqwest::StatusCode;
-use warp::{Filter, http::Method, Rejection, Reply};
 use crate::functionality::{color_swap, container_generation};
 use crate::handle_errors::LoginError;
-use crate::types::carparams::{CarParams, extract_car_params};
+use crate::types::carparams::{extract_car_params, CarParams};
 use crate::types::image::{Image, NewImage};
 use crate::types::user::{NewUser, User, UserCredentials};
+use reqwest::StatusCode;
+use std::collections::HashMap;
+use std::net::ToSocketAddrs;
+use warp::{http::Method, Filter, Rejection, Reply};
 
 #[tokio::main]
 async fn main() {
-
     let db = db::Connection::new("postgres://postgres:a@localhost:5432/carcaro").await;
     let db_filter = warp::any().map(move || db.clone());
 
     let cors = warp::cors()
         .allow_any_origin()
-        .allow_headers(vec!["Access-Control-Allow-Origin", "Origin", "Accept", "X-Requested-With", "Content-Type"])
-        .allow_methods(
-       &[Method::PUT, Method::DELETE, Method::GET, Method::POST, Method::OPTIONS, Method::HEAD]);
+        .allow_headers(vec![
+            "Access-Control-Allow-Origin",
+            "Origin",
+            "Accept",
+            "X-Requested-With",
+            "Content-Type",
+        ])
+        .allow_methods(&[
+            Method::PUT,
+            Method::DELETE,
+            Method::GET,
+            Method::POST,
+            Method::OPTIONS,
+            Method::HEAD,
+        ]);
 
     let get_cars = warp::get()
         .and(warp::path("cars"))
@@ -74,30 +85,22 @@ async fn main() {
         .or(post_new_user)
         .with(cors);
 
-    warp::serve(routes)
-        .run(([127, 0, 0, 1], 7071))
-        .await;
-
+    warp::serve(routes).run(([127, 0, 0, 1], 7071)).await;
 }
 
-pub async fn get_cars_with_images(
-    db: db::Connection
-) -> Result<impl Reply, Rejection> {
-    let res = match db.get_cars_with_images()
-        .await {
-        Ok( res) => res,
+pub async fn get_cars_with_images(db: db::Connection) -> Result<impl Reply, Rejection> {
+    let res = match db.get_cars_with_images().await {
+        Ok(res) => res,
         Err(e) => {
             eprintln!("Error {}", e);
-            return Err(warp::reject::not_found())
+            return Err(warp::reject::not_found());
         }
     };
 
     return Ok(warp::reply::json(&res));
 }
 
-pub async fn post_chosen_color(
-    db: db::Connection
-) -> Result<impl Reply, Rejection> {
+pub async fn post_chosen_color(db: db::Connection) -> Result<impl Reply, Rejection> {
     /*
     if let Err(e) = db.post_chosen_color()
         .await {
@@ -106,16 +109,15 @@ pub async fn post_chosen_color(
 
      */
     Ok(warp::reply::with_status(
-"Color posted successfully",
+        "Color posted successfully",
         StatusCode::OK,
     ))
 }
 
 pub async fn post_user_to_sign_in(
     db: db::Connection,
-    user_credentials: UserCredentials
+    user_credentials: UserCredentials,
 ) -> Result<impl Reply, Rejection> {
-
     let email = user_credentials.email;
 
     let user = match db.get_user_by_email(&email).await {
@@ -125,12 +127,11 @@ pub async fn post_user_to_sign_in(
     if user_credentials.password == user.password {
         Ok(warp::reply::with_status(
             "Sign in successful",
-            StatusCode::OK
+            StatusCode::OK,
         ))
     } else {
         Err(warp::reject::custom(LoginError::InvalidCredentials))
     }
-
 }
 
 pub async fn get_car_to_visualize(
@@ -141,84 +142,63 @@ pub async fn get_car_to_visualize(
     if !params.is_empty() {
         car_params = extract_car_params(params)?;
     }
-    let res = match db.get_car_to_visualize(car_params.make, car_params.model, car_params.year)
-        .await {
+    let res = match db
+        .get_car_to_visualize(car_params.make, car_params.model, car_params.year)
+        .await
+    {
         Ok(res) => res,
-        Err(e) => {
-            return Err(warp::reject::not_found())
-        }
+        Err(e) => return Err(warp::reject::not_found()),
     };
     Ok(warp::reply::json(&res))
 }
 
-
-pub async fn post_new_image(
-    db: db::Connection,
-    image: Image
-) -> Result<impl Reply, Rejection> {
-
-    let image_request = match db.extract_image(image.id.0)
-        .await {
-        Ok(mask) => mask,
-        Err(e) => {
-            return Err(warp::reject::not_found())
-        }
+pub async fn post_new_image(db: db::Connection, image: Image) -> Result<impl Reply, Rejection> {
+    let image_request = match db.extract_image(image.id.0).await {
+        Ok(image_request) => image_request,
+        Err(e) => return Err(warp::reject::not_found()),
     };
-
-    color_swap::color_swap(image_request.url, image_request.colors).await?;
+    color_swap::color_swap(image_request.url, image.colors).await?;
 
     let id = uuid::Uuid::new_v4();
-    let new_image_urls = container_generation::generate_and_upload(id.to_string()).await.unwrap();
+    let new_image_urls = container_generation::generate_and_upload(id.to_string())
+        .await
+        .unwrap();
     let new_image = NewImage {
-        url:new_image_urls,
+        url: new_image_urls,
         colors: image_request.colors,
     };
 
-    let res = match db.add_new_image(new_image)
-        .await {
+    let res = match db.add_new_image(new_image).await {
         Ok(res) => res,
-        Err(e) => {
-            return Err(warp::reject::not_found())
-        }
+        Err(e) => return Err(warp::reject::not_found()),
     };
     Ok(warp::reply::json(&res))
 }
-pub async fn post_new_user(
-    db: db::Connection,
-    user: User
-) -> Result<impl Reply, Rejection> {
-
+pub async fn post_new_user(db: db::Connection, user: User) -> Result<impl Reply, Rejection> {
     let user = NewUser {
         email: user.email,
         firstname: user.firstname,
         lastname: user.lastname,
         password_hash: user.password_hash,
-        phone_number: user.phone_number
+        phone_number: user.phone_number,
     };
 
     println!("{:?}", user);
 
-
-    let res = match db.create_user(user)
-        .await {
+    let res = match db.create_user(user).await {
         Ok(res) => res,
-        Err(e) => {
-            return Err(warp::reject::not_found())
-        }
+        Err(e) => return Err(warp::reject::not_found()),
     };
 
     Ok(warp::reply::json(&res))
 }
 
-pub async fn get_colors(
-    db: db::Connection,
-) -> Result<impl Reply, Rejection> {
-    let res = match db.get_colors()
-        .await {
+pub async fn get_colors(db: db::Connection) -> Result<impl Reply, Rejection> {
+    let res = match db.get_colors().await {
         Ok(res) => res,
         Err(e) => {
             eprintln!("Error {}", e);
-            return Err(warp::reject::not_found())
+            return Err(warp::reject::not_found());
         }
     };
 

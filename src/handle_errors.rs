@@ -29,7 +29,6 @@ impl std::fmt::Display for Error {
     }
 }
 
-
 impl std::fmt::Display for LoginError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match *self {
