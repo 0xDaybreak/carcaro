@@ -1,16 +1,13 @@
-use std::io::Read;
 use colorsys::{Hsl};
 use crate::handle_errors::Error;
-use image::{DynamicImage, GenericImageView, Rgba};
+use image::{DynamicImage, Rgba};
 
 pub async fn color_swap(
     base_urls: Vec<String>,
     target_color: [u8; 3],
-    mask_urls: Vec<String>,
 ) -> Result<(), Error> {
     println!("Started mask and models extraction");
     extract_mask_and_model(base_urls, "base").await.expect("TODO: panic message");
-    extract_mask_and_model(mask_urls, "mask").await.expect("TODO: panic message");
     println!("Extracted mask and models");
     apply_color_shift(target_color).await.expect("TODO: panic message");
     println!("applied hue shift");
@@ -53,11 +50,9 @@ async fn prepare_images(i: usize, url: String, dir: std::sync::Arc<String>) -> R
 pub async fn apply_color_shift(target_color: [u8; 3]) -> Result<(), Error> {
     for i in 0..=11 {
         let base_input = format!("src/base/saved_{}.png", i);
-        let mask_input = format!("src/mask/saved_{}.png", i);
         let output = format!("src/base/saved_{}.png", i);
         let mut base_image = image::open(&base_input).expect("Failed to open image");
-        let mask_image = image::open(&mask_input).expect("Failed to open image");
-        colorize_images(&mut base_image, &mask_image, target_color).await;
+        colorize_images(&mut base_image, target_color).await.expect("TODO: panic message");
         println!("colorized images");
         base_image.to_rgba8().save(output).expect("Failed to save image");
     }
@@ -66,16 +61,12 @@ pub async fn apply_color_shift(target_color: [u8; 3]) -> Result<(), Error> {
 
 async fn colorize_images(
     base_image: &mut DynamicImage,
-    mask_image: &DynamicImage,
     target_color: [u8; 3],
 ) -> Result<(), Error> {
     let mut rgba_base_image = base_image.to_rgba32f();
-    let rgba_mask_image = mask_image.to_rgba8();
 
-    for (pixel, mask_pixel) in rgba_base_image.pixels_mut().zip(rgba_mask_image.pixels()) {
-        if mask_pixel[0] != 0 || mask_pixel[1] != 0 || mask_pixel[2] != 0 {
+    for pixel in rgba_base_image.pixels_mut() {
             *pixel = adjust_color(&pixel, target_color);
-        }
     }
 
     *base_image = DynamicImage::ImageRgba32F(rgba_base_image);
@@ -96,7 +87,6 @@ fn adjust_color(base_pixel: &Rgba<f32>, target_color: [u8; 3]) -> Rgba<f32> {
 
     let base_rgb:colorsys::Rgb = colorsys::Rgb::new(r, g, b, None);
     let mut base_hsl = Hsl::from(base_rgb);
-    base_hsl.set_hue(0.);
     base_hsl.set_hue(target_hue);
     let base_rgb:colorsys::Rgb = colorsys::Rgb::from(&mut base_hsl);
 

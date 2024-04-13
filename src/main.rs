@@ -11,7 +11,6 @@ use crate::functionality::{color_swap, container_generation};
 use crate::handle_errors::LoginError;
 use crate::types::carparams::{CarParams, extract_car_params};
 use crate::types::image::{Image, NewImage};
-use crate::types::image_request::ImageRequest;
 use crate::types::user::{NewUser, User, UserCredentials};
 
 #[tokio::main]
@@ -157,7 +156,8 @@ pub async fn post_new_image(
     db: db::Connection,
     image: Image
 ) -> Result<impl Reply, Rejection> {
-    let mask = match db.extract_mask(image.id.0)
+
+    let image_request = match db.extract_image(image.id.0)
         .await {
         Ok(mask) => mask,
         Err(e) => {
@@ -165,17 +165,13 @@ pub async fn post_new_image(
         }
     };
 
-    let image_request = ImageRequest {
-        image,
-        mask,
-    };
-    color_swap::color_swap(image_request.image.url, image_request.image.colors, image_request.mask.url).await?;
+    color_swap::color_swap(image_request.url, image_request.colors).await?;
 
-    let new_image_urls = container_generation::generate_and_upload("fgfdg56564564564".to_string()).await.unwrap();
+    let id = uuid::Uuid::new_v4();
+    let new_image_urls = container_generation::generate_and_upload(id.to_string()).await.unwrap();
     let new_image = NewImage {
         url:new_image_urls,
-        colors: image_request.image.colors,
-        maskid: 1,
+        colors: image_request.colors,
     };
 
     let res = match db.add_new_image(new_image)
