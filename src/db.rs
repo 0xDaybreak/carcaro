@@ -5,6 +5,7 @@ use crate::types::image_request::ImageRequest;
 use crate::types::user::{NewUser, User, UserCredentials, UserId};
 use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
 use sqlx::{query, Error, Row};
+use crate::types::favorite::Favorite;
 
 #[derive(Clone)]
 pub struct Connection {
@@ -89,6 +90,7 @@ impl Connection {
             id: ImageId(res.get("imageid")),
             url: res.get("url"),
             colors: res.get("colors"),
+            userid: None,
         };
 
         Ok(images)
@@ -97,17 +99,19 @@ impl Connection {
     pub async fn add_new_image(&self, new_image: NewImage) -> Result<Image, Error> {
         let query = sqlx::query(
             r#"
-            INSERT INTO image (url, colors)
-            VALUES($1, $2)
-            RETURNING imageid, url, colors
+            INSERT INTO image (url, colors, userid)
+            VALUES($1, $2, $3)
+            RETURNING imageid, url, colors, userid
         "#,
         )
         .bind(new_image.url)
         .bind(new_image.colors)
+        .bind(new_image.userid)
         .map(|row| Image {
             id: ImageId(row.get("imageid")),
             url: row.get("url"),
             colors: row.get("colors"),
+            userid: row.get("userid"),
         });
 
         match query.fetch_one(&self.connection).await {
@@ -170,6 +174,38 @@ impl Connection {
             .collect();
 
         Ok(colors)
+    }
+
+    pub async fn get_user_favorites(&self, userid: UserId) -> Result<Vec<Favorite>, Error> {
+        let query = sqlx::query(
+            r#"
+            SELECT image.colors, car.make, car.model
+            FROM image
+            INNER JOIN car ON image.carid = car.carid
+            WHERE image.userid = $1
+            "#,
+        ).bind(userid.0);
+
+        let result = match query.fetch_all(&self.connection).await {
+            Ok(result) => result,
+            Err(e) => {
+                eprintln!("Error executing query: {:?}", e);
+                return Err(Error::RowNotFound);
+            }
+        };
+        let favorites: Vec<Favorite> = result
+            .into_iter()
+            .map(|row| {
+                let favorite = Favorite {
+                    make: row.get("make"),
+                    model: row.get("model"),
+                    colors: row.get("colors"),
+                };
+                favorite
+            })
+            .collect();
+        println!("{:?}",favorites);
+        Ok(favorites)
     }
 
     pub async fn get_user_by_email(&self, email: &String) -> Result<UserCredentials, Error> {

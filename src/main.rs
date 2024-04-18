@@ -7,7 +7,7 @@ use crate::functionality::{color_swap, container_generation};
 use crate::handle_errors::LoginError;
 use crate::types::carparams::{extract_car_params, CarParams};
 use crate::types::image::{Image, NewImage};
-use crate::types::user::{NewUser, User, UserCredentials};
+use crate::types::user::{NewUser, User, UserCredentials, UserId};
 use reqwest::StatusCode;
 use std::collections::HashMap;
 use std::net::ToSocketAddrs;
@@ -55,14 +55,14 @@ async fn main() {
         .and(warp::path::end())
         .and(db_filter.clone())
         .and_then(get_colors);
-/*
+
     let get_user_favorites = warp::get()
         .and(warp::path("user"))
         .and(warp::path("favorites"))
         .and(db_filter.clone())
+        .and(warp::body::json())
         .and_then(get_user_favorites);
 
- */
     let post_new_image = warp::post()
         .and(warp::path("cars"))
         .and(warp::path("newimage"))
@@ -87,6 +87,7 @@ async fn main() {
     let routes = get_cars
         .or(get_cars_to_visualize)
         .or(get_colors)
+        .or(get_user_favorites)
         .or(post_user_to_sign_in)
         .or(post_new_image)
         .or(post_new_user)
@@ -145,13 +146,13 @@ pub async fn get_car_to_visualize(
     Ok(warp::reply::json(&res))
 }
 
-/*
 pub async fn get_user_favorites(
     db: db::Connection,
+    userid: UserId,
 ) -> Result<impl Reply, Rejection> {
 
     let res = match db
-        .get_user_favorites()
+        .get_user_favorites(userid)
         .await {
         Ok(res) => res,
         Err(e) => {
@@ -159,9 +160,9 @@ pub async fn get_user_favorites(
             return Err(warp::reject::not_found())
         }
     };
+    Ok(warp::reply::json(&res))
 }
 
- */
 
 pub async fn post_new_image(db: db::Connection, image: Image) -> Result<impl Reply, Rejection> {
     let image_request = match db.extract_image(image.id.0).await {
@@ -176,7 +177,8 @@ pub async fn post_new_image(db: db::Connection, image: Image) -> Result<impl Rep
         .unwrap();
     let new_image = NewImage {
         url: new_image_urls,
-        colors: image_request.colors,
+        colors: image.colors,
+        userid: image.userid
     };
 
     let res = match db.add_new_image(new_image).await {
