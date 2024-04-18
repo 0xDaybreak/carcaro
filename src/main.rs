@@ -55,7 +55,14 @@ async fn main() {
         .and(warp::path::end())
         .and(db_filter.clone())
         .and_then(get_colors);
+/*
+    let get_user_favorites = warp::get()
+        .and(warp::path("user"))
+        .and(warp::path("favorites"))
+        .and(db_filter.clone())
+        .and_then(get_user_favorites);
 
+ */
     let post_new_image = warp::post()
         .and(warp::path("cars"))
         .and(warp::path("newimage"))
@@ -100,20 +107,6 @@ pub async fn get_cars_with_images(db: db::Connection) -> Result<impl Reply, Reje
     return Ok(warp::reply::json(&res));
 }
 
-pub async fn post_chosen_color(db: db::Connection) -> Result<impl Reply, Rejection> {
-    /*
-    if let Err(e) = db.post_chosen_color()
-        .await {
-            return Err(warp::reject::not_found())
-    }
-
-     */
-    Ok(warp::reply::with_status(
-        "Color posted successfully",
-        StatusCode::OK,
-    ))
-}
-
 pub async fn post_user_to_sign_in(
     db: db::Connection,
     user_credentials: UserCredentials,
@@ -151,6 +144,24 @@ pub async fn get_car_to_visualize(
     };
     Ok(warp::reply::json(&res))
 }
+
+/*
+pub async fn get_user_favorites(
+    db: db::Connection,
+) -> Result<impl Reply, Rejection> {
+
+    let res = match db
+        .get_user_favorites()
+        .await {
+        Ok(res) => res,
+        Err(e) => {
+            eprintln!("{:?}",e);
+            return Err(warp::reject::not_found())
+        }
+    };
+}
+
+ */
 
 pub async fn post_new_image(db: db::Connection, image: Image) -> Result<impl Reply, Rejection> {
     let image_request = match db.extract_image(image.id.0).await {

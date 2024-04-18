@@ -6,11 +6,11 @@ pub async fn color_swap(base_urls: Vec<String>, target_color: [u8; 3]) -> Result
     println!("Started mask and models extraction");
     extract_mask_and_model(base_urls, "base")
         .await
-        .expect("TODO: panic message");
+        .expect("Failed to extract model");
     println!("Extracted mask and models");
     apply_color_shift(target_color)
         .await
-        .expect("TODO: panic message");
+        .expect("Failed to apply hue shift");
     println!("applied hue shift");
     Ok(())
 }
@@ -96,8 +96,9 @@ fn adjust_color(base_pixel: &Rgba<f32>, target_color: [u8; 3]) -> Rgba<f32> {
 
     let base_rgb: colorsys::Rgb = colorsys::Rgb::new(r, g, b, None);
     let mut base_hsl = Hsl::from(base_rgb);
-    base_hsl.set_hue(0.);
-    base_hsl.set_hue(target_hue);
+        base_hsl.set_hue(0.);
+        base_hsl.set_hue(target_hue);
+
     let base_rgb: colorsys::Rgb = colorsys::Rgb::from(&mut base_hsl);
 
     Rgba([
